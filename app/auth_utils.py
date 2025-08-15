@@ -51,6 +51,9 @@ class AuthUtils:
         """Verify and decode a JWT token."""
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            # Convert sub back to int for consistency with our database IDs
+            if 'sub' in payload and isinstance(payload['sub'], str):
+                payload['sub'] = int(payload['sub'])
             return payload
         except jwt.ExpiredSignatureError:
             raise HTTPException(
@@ -58,7 +61,7 @@ class AuthUtils:
                 detail="Token has expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except jwt.JWTError:
+        except jwt.PyJWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",

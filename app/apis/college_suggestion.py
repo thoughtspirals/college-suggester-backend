@@ -69,11 +69,12 @@ def get_suggested_colleges(
     )
     
     # Filter by seat type/level
+    # Based on the database analysis: H->other, S->state, O->? 
     seat_type_mapping = {
-        "H": "home",
-        "O": "other", 
-        "S": "state",
-        "AI": "all india"
+        "H": "other",  # Home state candidates get "other" level
+        "O": "other",  # Other state candidates also get "other" level  
+        "S": "state",  # State level
+        "AI": "all india"  # All India
     }
     
     if seat_type in seat_type_mapping:
@@ -93,7 +94,7 @@ def get_suggested_colleges(
         "AI": "AI"
     }
     
-    seat_type_code = seat_type_code_mapping.get(seat_type, "S")
+    seat_type_code = seat_type_code_mapping.get(seat_type, "H")
     
     # Handle special reservations
     if special_reservation:
@@ -128,8 +129,10 @@ def get_suggested_colleges(
             ]
     else:
         # Regular category without special reservation
+        # Try both with and without seat type code since some categories might not have it
         category_patterns = [
-            f"{gender_code}{caste}{seat_type_code}"
+            f"{gender_code}{caste}{seat_type_code}",
+            f"{gender_code}{caste}"
         ]
     
     # Apply category filter with OR condition for multiple patterns
@@ -225,10 +228,10 @@ def get_college_details_by_rank(
     seat_type = seat_type.upper().strip()
     
     seat_type_mapping = {
-        "H": "home",
-        "O": "other", 
-        "S": "state",
-        "AI": "all india"
+        "H": "other",  # Home state candidates get "other" level
+        "O": "other",  # Other state candidates also get "other" level
+        "S": "state",  # State level
+        "AI": "all india"  # All India
     }
     
     if seat_type in seat_type_mapping:

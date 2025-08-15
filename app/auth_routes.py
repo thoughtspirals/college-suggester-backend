@@ -84,7 +84,7 @@ def login_user(
     # Create access token
     access_token_expires = timedelta(minutes=30)  # Or from config
     access_token = AuthUtils.create_access_token(
-        data={"sub": user.id, "email": user.email},
+        data={"sub": str(user.id), "email": user.email},
         expires_delta=access_token_expires
     )
     

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from app.database import engine, Base
 from app import models
 from app.routes import router as college_router
+from app.auth_routes import auth_router, user_router, admin_router
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -21,3 +22,6 @@ Base.metadata.create_all(bind=engine)
 
 # Include routes
 app.include_router(college_router)
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(admin_router)

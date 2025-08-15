@@ -39,8 +39,11 @@ def recommend_colleges(
     sorted by cutoff rank (lowest cutoff first).
     """
     try:
-        colleges = get_suggested_colleges(
-            db, rank, caste, gender, seat_type, special_reservation, limit
+        # Use the same logic as college-details but without branch filtering and limit=20
+        colleges = get_college_details_by_rank(
+            db, rank, caste, gender, seat_type, 
+            college_name=None, branch=None, special_reservation=special_reservation, 
+            limit=20
         )
         
         if not colleges:

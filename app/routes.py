@@ -12,6 +12,9 @@ from app.apis.college_suggestion import (
     get_college_details_by_rank,
     get_college_statistics
 )
+from app.auth_dependencies import get_current_user, require_permission
+from app.auth_utils import Permissions
+from app.models import User
 from typing import List, Optional
 
 router = APIRouter()
@@ -25,6 +28,7 @@ def recommend_colleges(
     seat_type: str = Query("H", description="Type of seat (H-Home, O-Other, S-State, AI-All India)"),
     special_reservation: Optional[str] = Query(None, description="Special reservation type (PWD, DEFENCE, ORPHAN, TFWS)"),
     limit: int = Query(20, description="Maximum number of colleges to return"),
+    current_user: User = Depends(require_permission(Permissions.READ_COLLEGES)),
     db: Session = Depends(get_db)
 ):
     """
@@ -66,6 +70,65 @@ def recommend_colleges(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
+@router.get("/branch-mappings")
+def get_branch_mappings(db: Session = Depends(get_db)):
+    """
+    Get detailed branch information showing original names and their normalized versions.
+    Useful for debugging and understanding the normalization process.
+    """
+    try:
+        from app.models import RankedCollege, Cutoff
+        from app.utils.branch_normalizer import BranchNormalizer
+        from sqlalchemy import distinct
+        
+        normalizer = BranchNormalizer()
+        
+        # Collect branches from both tables
+        all_branches = []
+        
+        # Get branches from cutoffs table
+        try:
+            cutoff_branches = db.query(distinct(Cutoff.branch)).all()
+            for b in cutoff_branches:
+                if b[0] and b[0].strip() and len(b[0].strip()) > 1:
+                    all_branches.append(b[0].strip())
+        except Exception as e:
+            print(f"Warning: Could not fetch branches from cutoffs table: {e}")
+        
+        # Get branches from ranked_colleges table  
+        try:
+            ranked_branches = db.query(distinct(RankedCollege.branch)).all()
+            for b in ranked_branches:
+                if b[0] and b[0].strip() and len(b[0].strip()) > 1:
+                    all_branches.append(b[0].strip())
+        except Exception as e:
+            print(f"Warning: Could not fetch branches from ranked_colleges table: {e}")
+        
+        # Remove duplicates
+        unique_branches = list(set(all_branches))
+        
+        # Get mappings with original and normalized names
+        branch_mappings = normalizer.get_all_branches_with_normalized(unique_branches)
+        
+        # Format response
+        response = {
+            "total_original_branches": len(unique_branches),
+            "total_normalized_branches": len(set(mapping[1] for mapping in branch_mappings)),
+            "mappings": [
+                {
+                    "original": original,
+                    "normalized": normalized
+                }
+                for original, normalized in branch_mappings
+            ]
+        }
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
 
 
 @router.get("/college-details", response_model=List[CollegeSuggestionResponse])
@@ -77,6 +140,8 @@ def get_college_details(
     special_reservation: Optional[str] = Query(None, description="Special reservation type (PWD, DEFENCE, ORPHAN, TFWS)"),
     college_name: Optional[str] = Query(None, description="Specific college name"),
     branch: Optional[str] = Query(None, description="Specific branch name (can be normalized name like 'CS' or full name)"),
+    limit: int = Query(50, description="Maximum number of results to return"),
+    current_user: User = Depends(require_permission(Permissions.READ_COLLEGES)),
     db: Session = Depends(get_db)
 ):
     """
@@ -85,7 +150,7 @@ def get_college_details(
     """
     try:
         colleges = get_college_details_by_rank(
-            db, rank, caste, gender, seat_type, college_name, branch, special_reservation
+            db, rank, caste, gender, seat_type, college_name, branch, special_reservation, limit
         )
         
         if not colleges:
@@ -126,6 +191,7 @@ def get_statistics(
     caste: str = Query(..., description="Student's caste category"),
     gender: str = Query(..., description="Student's gender"),
     seat_type: str = Query(..., description="Type of seat"),
+    current_user: User = Depends(require_permission(Permissions.READ_COLLEGES)),
     db: Session = Depends(get_db)
 ):
     """
@@ -143,6 +209,7 @@ def get_statistics(
 @router.post("/suggest-colleges", response_model=List[CollegeSuggestionResponse])
 def suggest_colleges_post(
     request: CollegeSuggestionRequest,
+    current_user: User = Depends(require_permission(Permissions.READ_COLLEGES)),
     db: Session = Depends(get_db)
 ):
     """
@@ -244,33 +311,44 @@ def get_available_regions(db: Session = Depends(get_db)):
 @router.get("/available-branches", response_model=List[str])
 def get_available_branches(db: Session = Depends(get_db)):
     """
-    Get all unique branch names from the ranked_colleges table.
-    Returns normalized branch names that can be used for filtering.
+    Get all unique branch names, collecting from both cutoffs and ranked_colleges tables.
+    Returns normalized branch names (e.g., Computer Science -> CSE) for better consistency.
     """
     try:
-        from app.models import RankedCollege
-        from sqlalchemy import distinct
+        from app.models import RankedCollege, Cutoff
+        from app.utils.branch_normalizer import BranchNormalizer
+        from sqlalchemy import distinct, union
         
-        # Query for distinct branch names from ranked_colleges table
-        branches = db.query(distinct(RankedCollege.branch)).all()
+        normalizer = BranchNormalizer()
         
-        # Filter out None values and clean up branch names
-        filtered_branches = []
-        for b in branches:
-            if b[0] and b[0].strip():
-                branch_name = b[0].strip()
-                
-                # Skip empty or very short branch names
-                if len(branch_name) < 2:
-                    continue
-                
-                if branch_name not in filtered_branches:
-                    filtered_branches.append(branch_name)
+        # Collect branches from both tables
+        all_branches = []
         
-        # Sort and return unique branches
-        available_branches = sorted(list(set(filtered_branches)))
+        # Get branches from cutoffs table
+        try:
+            cutoff_branches = db.query(distinct(Cutoff.branch)).all()
+            for b in cutoff_branches:
+                if b[0] and b[0].strip() and len(b[0].strip()) > 1:
+                    all_branches.append(b[0].strip())
+        except Exception as e:
+            print(f"Warning: Could not fetch branches from cutoffs table: {e}")
         
-        return available_branches
+        # Get branches from ranked_colleges table  
+        try:
+            ranked_branches = db.query(distinct(RankedCollege.branch)).all()
+            for b in ranked_branches:
+                if b[0] and b[0].strip() and len(b[0].strip()) > 1:
+                    all_branches.append(b[0].strip())
+        except Exception as e:
+            print(f"Warning: Could not fetch branches from ranked_colleges table: {e}")
+        
+        # Remove duplicates
+        unique_branches = list(set(all_branches))
+        
+        # Normalize all branches and get unique normalized names
+        normalized_branches = normalizer.get_normalized_branches(unique_branches)
+        
+        return normalized_branches
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

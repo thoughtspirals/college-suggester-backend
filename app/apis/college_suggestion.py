@@ -154,7 +154,8 @@ def get_college_details_by_rank(
     seat_type: str,
     college_name: Optional[str] = None,
     branch: Optional[str] = None,
-    special_reservation: Optional[str] = None
+    special_reservation: Optional[str] = None,
+    limit: int = 50
 ) -> List[Cutoff]:
     """
     Get detailed cutoff information for specific college/branch combination.
@@ -184,28 +185,39 @@ def get_college_details_by_rank(
     if college_name:
         query = query.filter(College.name.contains(college_name))
     
-    # Enhanced branch filtering using both direct branch name and normalized branch names
+    # Enhanced branch filtering using direct branch name matching
     if branch:
-        # Create a subquery to find course codes that match the normalized branch name
-        from app.models import RankedCollege
+        # Create flexible branch matching patterns
+        branch_patterns = []
         
-        # Get course codes from ranked_colleges that match the branch name
-        branch_codes_subquery = db.query(RankedCollege.branch_code).filter(
-            or_(
-                RankedCollege.branch.ilike(f"%{branch}%"),
-                RankedCollege.branch == branch
-            )
-        ).subquery()
+        # Common branch abbreviations to full names mapping
+        branch_mappings = {
+            'CS': ['Computer Science', 'Computer Science and Engineering'],
+            'IT': ['Information Technology'],
+            'ECE': ['Electronics and Communication', 'Electronics and Telecommunication'],
+            'ENTC': ['Electronics and Telecommunication', 'Electronics and Communication'],
+            'MECH': ['Mechanical Engineering', 'Mechanical'],
+            'CIVIL': ['Civil Engineering', 'Civil'],
+            'EEE': ['Electrical Engineering', 'Electrical and Electronics'],
+            'ELECTRICAL': ['Electrical Engineering', 'Electrical and Electronics'],
+            'CHEMICAL': ['Chemical Engineering', 'Chemical'],
+            'BIOTECH': ['Biotechnology', 'Biomedical Engineering'],
+            'AUTOMOBILE': ['Automobile Engineering', 'Automotive'],
+            'PRODUCTION': ['Production Engineering', 'Manufacturing'],
+            'INSTRUMENTATION': ['Instrumentation Engineering', 'Instrumentation']
+        }
         
-        # Filter by either direct branch match or course code match
-        query = query.filter(
-            or_(
-                Cutoff.branch.contains(branch),  # Direct branch name match
-                Cutoff.course_code.in_(
-                    db.query(branch_codes_subquery.c.branch_code.cast(Integer))
-                )
-            )
-        )
+        # Add the original branch term
+        branch_patterns.append(Cutoff.branch.ilike(f"%{branch}%"))
+        
+        # Check if the branch matches any known abbreviations
+        branch_upper = branch.upper()
+        if branch_upper in branch_mappings:
+            for full_name in branch_mappings[branch_upper]:
+                branch_patterns.append(Cutoff.branch.ilike(f"%{full_name}%"))
+        
+        # Apply OR condition for all branch patterns
+        query = query.filter(or_(*branch_patterns))
     
     # Apply the same category and seat type filters as main function
     caste = caste.upper().strip()
@@ -262,7 +274,7 @@ def get_college_details_by_rank(
     if category_filters:
         query = query.filter(or_(*category_filters))
     
-    return query.order_by(Cutoff.rank.asc()).all()
+    return query.order_by(Cutoff.rank.asc()).limit(limit).all()
 
 
 def get_college_statistics(

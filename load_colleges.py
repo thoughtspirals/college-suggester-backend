@@ -17,7 +17,7 @@ def extract_lines(pdf_path):
 def main():
     db = SessionLocal()
     try:
-        pdf_lines = extract_lines("app/data/_final.pdf")  # Adjust path if needed
+        pdf_lines = extract_lines("app/data/mh-cet-cap-1.pdf")  # Adjust path if needed
         load_college_data(pdf_lines, db)
     except Exception as e:
         print("❌ Error occurred:", e)

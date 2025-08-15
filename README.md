@@ -39,9 +39,9 @@ app/
 ├── utils/
 │   └── pdf_parser.py      # PDF processing utilities
 └── data/                  # College data files
-    ├── _final.pdf
+    ├── mh-cet-cap-1.pdf      # Primary MH-CET CAP round 1 data
     ├── available_seats_cap1.pdf
-    └── mh-cet-cap-1.pdf
+    └── aaaa.pdf
 
 # Utility Scripts
 ├── create_tables.py       # Database table creation
@@ -157,9 +157,9 @@ The application uses SQLite by default. To use PostgreSQL or MySQL:
 ### PDF Data Sources
 The application processes several PDF files containing college admission data:
 
-- **mh-cet-cap-1.pdf** - MH-CET CAP round 1 data
+- **mh-cet-cap-1.pdf** - Primary MH-CET CAP round 1 data (main data source)
 - **available_seats_cap1.pdf** - Available seats information
-- **_final.pdf** - Final admission data
+- **aaaa.pdf** - Additional admission data
 
 ### Data Loading Scripts
 

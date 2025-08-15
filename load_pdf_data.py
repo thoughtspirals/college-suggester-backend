@@ -3,7 +3,7 @@ from app.database import SessionLocal, engine
 from app.utils.pdf_parser import extract_cutoffs_from_pdf
 
 # Path to your stored PDF file
-pdf_path = "app/data/_final.pdf"
+pdf_path = "app/data/mh-cet-cap-1.pdf"
 
 # Create a DB session
 db = SessionLocal()
